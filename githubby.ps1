@@ -150,7 +150,16 @@ $commitMsg = "Add/update scripts and README on $(Get-Date -Format 'yyyy-MM-dd HH
 git commit -m "$commitMsg"
 if ($LASTEXITCODE -eq 0) {
     Write-Log "Committed changes: $commitMsg"
-    git push
+
+    # Ensure the main branch is tracking the remote
+    $tracking = git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>$null
+    if (-not $tracking) {
+        Write-Log "No upstream set for 'main'. Setting upstream to origin/main."
+        git push --set-upstream origin main
+    } else {
+        git push
+    }
+
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Scripts and README pushed to GitHub successfully."
         Write-Log "Scripts and README pushed to GitHub successfully."
