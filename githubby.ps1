@@ -33,6 +33,22 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
+# --- Ensure git user configuration is set ---
+$userEmail = "nerdy@kyle.howard.com"
+$userName = "Kyle Howard"
+
+$currentEmail = git config --global user.email 2>$null
+$currentName = git config --global user.name 2>$null
+
+if ($currentEmail -ne $userEmail) {
+    git config --global user.email $userEmail
+    Write-Log "Set global git user.email to $userEmail"
+}
+if ($currentName -ne $userName) {
+    git config --global user.name $userName
+    Write-Log "Set global git user.name to $userName"
+}
+
 # --- Clone or use existing repo ---
 if (-not (Test-Path ".git")) {
     Write-Log "No .git directory found. Cloning repository..."
@@ -47,11 +63,51 @@ if (-not (Test-Path ".git")) {
     git pull | Out-Null
 }
 
-# --- Add all scripts in current directory ---
+# --- Ensure we are on the 'main' branch ---
+$currentBranch = git rev-parse --abbrev-ref HEAD 2>$null
+if ($currentBranch -ne "main") {
+    Write-Log "Current branch is '$currentBranch'. Switching to 'main' branch."
+    # Try to checkout main, or create it if it doesn't exist
+    git checkout main 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        git checkout -b main
+        Write-Log "Created and switched to 'main' branch."
+    } else {
+        Write-Log "Switched to 'main' branch."
+    }
+}
+
+# --- Ensure git upstream is correct ---
+$remoteUrl = git remote get-url origin 2>$null
+if ($remoteUrl -ne $repoUrl) {
+    if ($remoteUrl) {
+        git remote set-url origin $repoUrl
+        Write-Log "Updated git remote 'origin' URL to $repoUrl"
+    } else {
+        git remote add origin $repoUrl
+        Write-Log "Set git remote 'origin' URL to $repoUrl"
+    }
+} else {
+    Write-Log "Git remote 'origin' URL is already correct."
+}
+
+# --- Add all scripts in current directory and log diffs for new files ---
 $scriptFiles = Get-ChildItem -Path $cwd -Filter "*.ps1" -File
 foreach ($file in $scriptFiles) {
-    git add $file.Name
-    Write-Log "Added $($file.Name) to git staging."
+    $status = git status --short $file.Name
+    if ($status -match "^\?\?") {
+        git add $file.Name
+        Write-Log "Added NEW file $($file.Name) to git staging."
+        # Log the full file content as the diff for a new file
+        $fileContent = Get-Content $file.FullName | Out-String
+        Write-Log "Diff for $($file.Name):`n$fileContent"
+    } elseif ($status -match "^ M") {
+        git add $file.Name
+        Write-Log "Updated file $($file.Name) staged."
+        # Log the diff for the modified file
+        $diff = git diff --cached $file.Name
+        Write-Log "Diff for $($file.Name):`n$diff"
+    }
 }
 
 # --- Update README.md ---
@@ -98,6 +154,11 @@ if ($LASTEXITCODE -eq 0) {
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Scripts and README pushed to GitHub successfully."
         Write-Log "Scripts and README pushed to GitHub successfully."
+        Write-Host "`nSummary:"
+        Write-Host " - All .ps1 scripts in the current directory have been added to the repository."
+        Write-Host " - README.md was updated to document each script's purpose and requirements."
+        Write-Host " - Changes were committed and pushed to https://github.com/kylehoward/setup_scripts.git."
+        Write-Host " - All actions and diffs were logged to $logPath."
     } else {
         Write-Host "Failed to push to GitHub."
         Write-Log "Failed to push to GitHub."
@@ -105,6 +166,10 @@ if ($LASTEXITCODE -eq 0) {
 } else {
     Write-Host "No changes to commit."
     Write-Log "No changes to commit."
+    Write-Host "`nSummary:"
+    Write-Host " - No new or changed scripts to add."
+    Write-Host " - README.md was checked and updated if needed."
+    Write-Host " - All actions were logged to $logPath."
 }
 
 <#
