@@ -168,6 +168,8 @@ if ($LASTEXITCODE -eq 0) {
         Write-Host " - README.md was updated to document each script's purpose and requirements."
         Write-Host " - Changes were committed and pushed to https://github.com/kylehoward/setup_scripts.git."
         Write-Host " - All actions and diffs were logged to $logPath."
+        Write-Host "`nRecent git log:"
+        git log --oneline -n 10
     } else {
         Write-Host "Failed to push to GitHub."
         Write-Log "Failed to push to GitHub."
@@ -179,6 +181,8 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host " - No new or changed scripts to add."
     Write-Host " - README.md was checked and updated if needed."
     Write-Host " - All actions were logged to $logPath."
+    Write-Host "`nRecent git log:"
+    git log --oneline -n 10
 }
 
 <#
